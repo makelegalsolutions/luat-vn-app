@@ -141,8 +141,10 @@ Yêu cầu:
                 })
 
         except Exception as e:
-            st.error(f"Có lỗi xảy ra, vui lòng thử lại. ({str(e)})")
+            import traceback
+            error_detail = traceback.format_exc()
+            st.error(f"Lỗi chi tiết:\n```\n{error_detail}\n```")
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": f"Có lỗi xảy ra: {str(e)}"
+                "content": f"Lỗi: {str(e)}"
             })
