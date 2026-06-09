@@ -1,0 +1,6 @@
+streamlit
+supabase
+qdrant-client
+FlagEmbedding
+datasets
+google-generativeai
