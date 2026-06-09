@@ -3,4 +3,4 @@ supabase
 qdrant-client
 FlagEmbedding
 datasets
-google-generativeai
+google-genai
