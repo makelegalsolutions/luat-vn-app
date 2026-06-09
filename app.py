@@ -3,7 +3,6 @@ from supabase import create_client
 from qdrant_client import QdrantClient
 from datasets import load_dataset
 from google import genai
-from google.genai import types
 
 # ============================================================
 # KHỞI TẠO
@@ -52,19 +51,15 @@ st.set_page_config(
 st.title("⚖️ Hỏi đáp Pháp luật Việt Nam")
 st.caption("Hệ thống hỗ trợ tra cứu và giải đáp pháp luật tự động")
 
-# Khởi tạo session
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Hiển thị lịch sử chat
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Ô nhập câu hỏi
 if query := st.chat_input("Nhập câu hỏi pháp lý của bạn..."):
 
-    # Hiển thị câu hỏi
     st.session_state.messages.append({"role": "user", "content": query})
     with st.chat_message("user"):
         st.markdown(query)
@@ -78,7 +73,10 @@ if query := st.chat_input("Nhập câu hỏi pháp lý của bạn..."):
 
             # Dịch sang tiếng Việt nếu cần
             detect_prompt = f"Câu này có phải tiếng Việt không? Nếu không, dịch sang tiếng Việt. Chỉ trả về bản tiếng Việt, không giải thích: {query}"
-            viet_query = gemini.generate_content(detect_prompt).text.strip()
+            viet_query = gemini.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=detect_prompt
+            ).text.strip()
 
             # Encode + search Qdrant
             query_vector = model.encode(viet_query)
@@ -122,13 +120,12 @@ Yêu cầu:
 - Nếu không đủ thông tin, hãy nói rõ"""
 
             answer = gemini.models.generate_content(
-    model="gemini-2.0-flash",
-    contents=prompt
-).text
+                model="gemini-2.5-flash",
+                contents=prompt
+            ).text
 
             st.markdown(answer)
 
-            # Hiển thị nguồn
             if sources:
                 with st.expander("📚 Nguồn tham khảo"):
                     for s in sources:
