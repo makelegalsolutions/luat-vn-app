@@ -2,7 +2,8 @@ import streamlit as st
 from supabase import create_client
 from qdrant_client import QdrantClient
 from datasets import load_dataset
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # ============================================================
 # KHỞI TẠO
@@ -17,8 +18,7 @@ def init_clients():
         url=st.secrets["QDRANT_URL"],
         api_key=st.secrets["QDRANT_KEY"]
     )
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    gemini = genai.GenerativeModel("gemini-1.5-flash")
+    gemini = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     return supabase, qdrant, gemini
 
 @st.cache_resource
@@ -121,7 +121,10 @@ Yêu cầu:
 - Trích dẫn điều luật cụ thể
 - Nếu không đủ thông tin, hãy nói rõ"""
 
-            answer = gemini.generate_content(prompt).text
+            answer = gemini.models.generate_content(
+    model="gemini-2.0-flash",
+    contents=prompt
+).text
 
             st.markdown(answer)
 
