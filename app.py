@@ -65,49 +65,53 @@ if query := st.chat_input("Nhập câu hỏi pháp lý của bạn..."):
         st.markdown(query)
 
     with st.chat_message("assistant"):
-        with st.spinner("Đang tìm kiếm..."):
+        try:
+            with st.spinner("Đang tìm kiếm..."):
 
-            supabase, qdrant, gemini = init_clients()
-            model = init_model()
-            dataset = load_hf_dataset()
+                supabase, qdrant, gemini = init_clients()
+                model = init_model()
+                dataset = load_hf_dataset()
 
-            # Dịch sang tiếng Việt nếu cần
-            detect_prompt = f"Câu này có phải tiếng Việt không? Nếu không, dịch sang tiếng Việt. Chỉ trả về bản tiếng Việt, không giải thích: {query}"
-            viet_query = gemini.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=detect_prompt
-            ).text.strip()
+                # Dịch sang tiếng Việt nếu cần
+                detect_prompt = f"Câu này có phải tiếng Việt không? Nếu không, dịch sang tiếng Việt. Chỉ trả về bản tiếng Việt, không giải thích: {query}"
+                viet_query = gemini.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=detect_prompt
+                ).text.strip()
 
-            # Encode + search Qdrant
-            query_vector = model.encode(viet_query)
-            if isinstance(query_vector, dict):
-                query_vector = query_vector["dense_vecs"]
+                # Encode + search Qdrant
+                query_vector = model.encode(viet_query)
+                if isinstance(query_vector, dict):
+                    query_vector = query_vector["dense_vecs"]
 
-            results = qdrant.query_points(
-                collection_name="luat_vn",
-                query=query_vector.tolist(),
-                limit=5
-            ).points
+                results = qdrant.query_points(
+                    collection_name="luat_vn",
+                    query=query_vector.tolist(),
+                    limit=5
+                ).points
 
-            # Lấy metadata + text
-            context_parts = []
-            sources = []
+                # Lấy metadata + text
+                context_parts = []
+                sources = []
 
-            for r in results:
-                chunk_id = r.payload["chunk_id"]
-                text = get_chunk_text(chunk_id, dataset)
-                meta = supabase.table("legal_chunks").select("*, legal_documents(*)").eq("chunk_id", chunk_id).execute()
+                for r in results:
+                    chunk_id = r.payload["chunk_id"]
+                    text = get_chunk_text(chunk_id, dataset)
+                    meta = supabase.table("legal_chunks").select("*, legal_documents(*)").eq("chunk_id", chunk_id).execute()
 
-                if text and meta.data:
-                    dieu = meta.data[0]["dieu_so"]
-                    van_ban = meta.data[0]["legal_documents"]["title"]
-                    context_parts.append(f"{van_ban} - {dieu}:\n{text}")
-                    sources.append(f"**{dieu}** — {van_ban}")
+                    if text and meta.data:
+                        dieu = meta.data[0]["dieu_so"]
+                        van_ban = meta.data[0]["legal_documents"]["title"]
+                        context_parts.append(f"{van_ban} - {dieu}:\n{text}")
+                        sources.append(f"**{dieu}** — {van_ban}")
 
-            context = "\n\n".join(context_parts)
+                context = "\n\n".join(context_parts)
 
-            # Gemini tổng hợp
-            prompt = f"""Bạn là chuyên gia pháp luật Việt Nam. Dựa vào các điều luật sau, hãy trả lời câu hỏi một cách rõ ràng, chính xác bằng tiếng Việt.
+                # Xử lý khi không tìm được kết quả
+                if not context_parts:
+                    answer = "Xin lỗi, tôi chưa tìm được điều luật liên quan đến câu hỏi này trong cơ sở dữ liệu hiện tại. Vui lòng thử lại với câu hỏi khác hoặc liên hệ chuyên gia pháp lý."
+                else:
+                    prompt = f"""Bạn là chuyên gia pháp luật Việt Nam. Dựa vào các điều luật sau, hãy trả lời câu hỏi một cách rõ ràng, chính xác bằng tiếng Việt.
 
 Các điều luật liên quan:
 {context}
@@ -119,19 +123,26 @@ Yêu cầu:
 - Trích dẫn điều luật cụ thể
 - Nếu không đủ thông tin, hãy nói rõ"""
 
-            answer = gemini.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            ).text
+                    answer = gemini.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt
+                    ).text
 
-            st.markdown(answer)
+                st.markdown(answer)
 
-            if sources:
-                with st.expander("📚 Nguồn tham khảo"):
-                    for s in sources:
-                        st.markdown(f"- {s}")
+                if sources:
+                    with st.expander("📚 Nguồn tham khảo"):
+                        for s in sources:
+                            st.markdown(f"- {s}")
 
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer
+                })
+
+        except Exception as e:
+            st.error(f"Có lỗi xảy ra, vui lòng thử lại. ({str(e)})")
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": answer
+                "content": f"Có lỗi xảy ra: {str(e)}"
             })
